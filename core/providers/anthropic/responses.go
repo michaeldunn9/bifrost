@@ -3431,9 +3431,9 @@ func (req *AnthropicMessageRequest) ToBifrostResponsesRequest(ctx *schemas.Bifro
 					Summary:   summary,
 				}
 			} else {
-				// Adaptive with no explicit effort — default to "high"
+				// Preserve the model's default effort for native adaptive requests.
 				params.Reasoning = &schemas.ResponsesParametersReasoning{
-					Effort:  schemas.Ptr("high"),
+					Effort:  schemas.Ptr(DefaultAdaptiveThinkingEffort(schemas.ResolveCanonicalModel(ctx, model))),
 					Summary: summary,
 				}
 			}
@@ -3442,6 +3442,11 @@ func (req *AnthropicMessageRequest) ToBifrostResponsesRequest(ctx *schemas.Bifro
 				Effort: schemas.Ptr("none"),
 			}
 		}
+	}
+	// Haiku 5.5 has adaptive thinking on by default, so native clients can set
+	// effort without a thinking object. Preserve that effort during conversion.
+	if req.Thinking == nil && IsHaiku55(schemas.ResolveCanonicalModel(ctx, model)) && req.OutputConfig != nil && req.OutputConfig.Effort != nil {
+		params.Reasoning = &schemas.ResponsesParametersReasoning{Effort: req.OutputConfig.Effort}
 	}
 	if include, ok := schemas.SafeExtractStringSlice(req.ExtraParams["include"]); ok {
 		params.Include = include

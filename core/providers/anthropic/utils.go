@@ -467,6 +467,19 @@ func StripUnsupportedFieldsFromRawBody(jsonBody []byte, provider schemas.ModelPr
 
 	var err error
 
+	// Haiku 5.5 only accepts fixed sampling defaults. Omit these knobs on
+	// passthrough requests too, matching the typed request converters.
+	if IsHaiku55(model) {
+		for _, field := range []string{"temperature", "top_p", "top_k"} {
+			if providerUtils.JSONFieldExists(jsonBody, field) {
+				jsonBody, err = providerUtils.DeleteJSONField(jsonBody, field)
+				if err != nil {
+					return nil, fmt.Errorf("strip raw %s: %w", field, err)
+				}
+			}
+		}
+	}
+
 	// diagnostics — undocumented Claude Code field; gated through the feature
 	// map like every other field. Only Anthropic direct keeps it (fail-closed).
 	if !features.Diagnostics && providerUtils.JSONFieldExists(jsonBody, "diagnostics") {
@@ -853,14 +866,31 @@ func IsSonnet5Plus(model string) bool {
 	return strings.Contains(strings.ToLower(model), "sonnet-5")
 }
 
+// IsHaiku55 identifies Claude Haiku 5.5, including provider-qualified IDs.
+// Unlike Haiku 4.5, it uses adaptive thinking and output_config.effort, and
+// rejects budget_tokens and non-default sampling parameters.
+// Source: https://platform.claude.com/docs/en/models/haiku-5-5/migration-guide
+func IsHaiku55(model string) bool {
+	return strings.Contains(strings.ToLower(model), "haiku-5-5")
+}
+
+// DefaultAdaptiveThinkingEffort preserves the model's default when a native
+// adaptive-thinking request omits output_config.effort.
+func DefaultAdaptiveThinkingEffort(model string) string {
+	if IsHaiku55(model) {
+		return "medium"
+	}
+	return "high"
+}
+
 // IsAdaptiveOnlyThinkingModel returns true for models where budget_tokens
 // extended thinking is removed (adaptive is the only thinking-on mode) and
-// temperature/top_p/top_k are rejected with a 400. Covers Opus 4.7+, Sonnet 5+,
+// sampling parameters should be omitted. Covers Opus 4.7+, Sonnet 5+, Haiku 5.5,
 // and the Fable/Mythos family. Use this — not IsOpus47Plus — for the thinking and
 // sampling-parameter gates so Fable is handled correctly. (Fast mode is gated
 // on IsOpus47Plus instead, since Fable does not support speed:"fast".)
 func IsAdaptiveOnlyThinkingModel(model string) bool {
-	return IsOpus47Plus(model) || IsSonnet5Plus(model) || IsFableFamily(model)
+	return IsOpus47Plus(model) || IsSonnet5Plus(model) || IsHaiku55(model) || IsFableFamily(model)
 }
 
 // SupportsNativeEffort returns true if the model supports Anthropic's native output_config.effort parameter.
@@ -877,7 +907,7 @@ func SupportsNativeEffort(model string) bool {
 // SupportsEffortParameter returns true if the model accepts the
 // output_config.effort parameter. Supported models: Claude Fable 5,
 // Claude Mythos 5, Claude Mythos Preview, Opus 5, Opus 4.8, Opus 4.7, Opus 4.6,
-// Sonnet 5, Sonnet 4.6, and Opus 4.5. All other models reject effort with a 400:
+// Sonnet 5, Sonnet 4.6, Haiku 5.5, and Opus 4.5. All other models reject effort with a 400:
 //
 //	"This model does not support the effort parameter."
 //
@@ -889,7 +919,7 @@ func SupportsNativeEffort(model string) bool {
 // Source: https://platform.claude.com/docs/en/build-with-claude/effort
 func SupportsEffortParameter(model string) bool {
 	m := strings.ToLower(model)
-	if IsFableFamily(m) || IsSonnet5Plus(m) || IsOpus5Plus(m) {
+	if IsFableFamily(m) || IsSonnet5Plus(m) || IsOpus5Plus(m) || IsHaiku55(m) {
 		return true
 	}
 	if strings.Contains(m, "haiku") {
@@ -968,13 +998,13 @@ func SupportsFastMode(model string) bool {
 }
 
 // SupportsAdaptiveThinking returns true if the model supports thinking.type: "adaptive".
-// Currently supported on Claude Opus 4.6, Claude Sonnet 4.6, Claude Sonnet 5+, Claude
+// Currently supported on Claude Opus 4.6, Claude Sonnet 4.6, Claude Sonnet 5+, Haiku 5.5, Claude
 // Opus 4.7+, and the Claude Fable/Mythos family. On Opus 4.7+, Sonnet 5+, and
 // Fable/Mythos adaptive is the only thinking-on mode; on Opus 4.6 and Sonnet 4.6 it
 // coexists with the deprecated budget_tokens-based extended thinking. On Fable/Mythos
 // adaptive is always on and thinking:{type:"disabled"} is rejected (see IsFableFamily).
 func SupportsAdaptiveThinking(model string) bool {
-	if IsOpus47Plus(model) || IsSonnet5Plus(model) || IsFableFamily(model) {
+	if IsAdaptiveOnlyThinkingModel(model) {
 		return true
 	}
 	model = strings.ToLower(model)

@@ -2100,9 +2100,9 @@ func (request *BedrockConverseRequest) ToBifrostResponsesRequest(ctx *schemas.Bi
 								Summary:   summary,
 							}
 						} else {
-							// Adaptive with no explicit effort — default to "high"
+							// Preserve the model's default effort for native adaptive requests.
 							bifrostReq.Params.Reasoning = &schemas.ResponsesParametersReasoning{
-								Effort:  schemas.Ptr("high"),
+								Effort:  schemas.Ptr(anthropic.DefaultAdaptiveThinkingEffort(schemas.ResolveCanonicalModel(ctx, bifrostReq.Model))),
 								Summary: summary,
 							}
 						}
@@ -2296,10 +2296,10 @@ func ToBedrockResponsesRequest(ctx *schemas.BifrostContext, bifrostReq *schemas.
 		if bifrostReq.Params.MaxOutputTokens != nil {
 			inferenceConfig.MaxTokens = bifrostReq.Params.MaxOutputTokens
 		}
-		if bifrostReq.Params.Temperature != nil {
+		if bifrostReq.Params.Temperature != nil && !anthropic.IsHaiku55(capModel) {
 			inferenceConfig.Temperature = bifrostReq.Params.Temperature
 		}
-		if bifrostReq.Params.TopP != nil {
+		if bifrostReq.Params.TopP != nil && !anthropic.IsHaiku55(capModel) {
 			inferenceConfig.TopP = bifrostReq.Params.TopP
 		}
 		if bifrostReq.Params.Reasoning != nil {

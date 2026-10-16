@@ -1543,11 +1543,11 @@ func convertInferenceConfig(params *schemas.ChatParameters, model string) *Bedro
 		config.MaxTokens = params.MaxCompletionTokens
 	}
 
-	if params.Temperature != nil {
+	if params.Temperature != nil && !anthropic.IsHaiku55(model) {
 		config.Temperature = params.Temperature
 	}
 
-	if params.TopP != nil {
+	if params.TopP != nil && !anthropic.IsHaiku55(model) {
 		config.TopP = params.TopP
 	}
 

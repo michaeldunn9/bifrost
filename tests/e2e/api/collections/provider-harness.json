@@ -41456,6 +41456,146 @@
           }
         }
       ]
+    },
+    {
+      "name": "Haiku 5.5 migration regression",
+      "description": "Haiku 5.5 uses adaptive thinking, supports effort low/medium/high/xhigh/max, and rejects enabled+budget_tokens and non-default sampling. These requests cover the native PydanticAI Messages and provider-neutral Responses/chat routes. Go tests additionally pin the outbound body, all effort values, 128k default output, and unchanged Haiku 4.5 behavior. Requires Anthropic access to claude-haiku-5-5.",
+      "item": [
+        {
+          "name": "PydanticAI Messages - adaptive low effort",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Haiku 5.5 request succeeds without model fallback', function () {",
+                  "  pm.expect(pm.response.code).to.equal(200);",
+                  "  var j = pm.response.json();",
+                  "  pm.expect(j.model).to.include('claude-haiku-5-5');",
+                  "});",
+                  "pm.test('Native response contains answer text', function () {",
+                  "  pm.expect(pm.response.json().content.some(function (c) { return c.type === 'text' && c.text; })).to.equal(true);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"model\": \"anthropic/claude-haiku-5-5\",\n  \"max_tokens\": 2048,\n  \"thinking\": {\n    \"type\": \"adaptive\"\n  },\n  \"output_config\": {\n    \"effort\": \"low\"\n  },\n  \"messages\": [\n    {\n      \"role\": \"user\",\n      \"content\": \"Reply with exactly OK.\"\n    }\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/pydanticai/v1/messages",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "pydanticai",
+                "v1",
+                "messages"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Responses - low effort and legacy sampling omitted",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Haiku 5.5 request succeeds without model fallback', function () {",
+                  "  pm.expect(pm.response.code).to.equal(200);",
+                  "  var j = pm.response.json();",
+                  "  pm.expect(j.model).to.include('claude-haiku-5-5');",
+                  "});",
+                  "pm.test('Responses output contains an answer', function () {",
+                  "  pm.expect(pm.response.json().output.some(function (o) { return o.type === 'message'; })).to.equal(true);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"model\": \"anthropic/claude-haiku-5-5\",\n  \"max_output_tokens\": 2048,\n  \"reasoning\": {\n    \"effort\": \"low\"\n  },\n  \"temperature\": 0.2,\n  \"input\": \"Reply with exactly OK.\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/responses",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "responses"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Chat streaming - adaptive low effort",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Haiku 5.5 stream completes with content', function () {",
+                  "  pm.expect(pm.response.code).to.equal(200);",
+                  "  var text = pm.response.text();",
+                  "  pm.expect(text).to.include('claude-haiku-5-5');",
+                  "  pm.expect(text).to.include('[DONE]');",
+                  "  var chunks = text.split('\\n').filter(function (s) { return s.indexOf('data: ') === 0 && s.indexOf('[DONE]') === -1; }).map(function (s) { return JSON.parse(s.slice(6)); });",
+                  "  pm.expect(chunks.some(function (c) { return c.choices && c.choices.some(function (v) { return v.delta && v.delta.content; }); })).to.equal(true);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"model\": \"anthropic/claude-haiku-5-5\",\n  \"max_completion_tokens\": 2048,\n  \"reasoning_effort\": \"low\",\n  \"stream\": true,\n  \"messages\": [\n    {\n      \"role\": \"user\",\n      \"content\": \"Reply with exactly OK.\"\n    }\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/chat/completions",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "chat",
+                "completions"
+              ]
+            }
+          }
+        }
+      ]
     }
   ]
 }

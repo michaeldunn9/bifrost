@@ -52,6 +52,7 @@ var knownAnthropicMaxOutputTokens = map[string]int{
 	"claude-opus-4-6":   128000,
 	"claude-sonnet-5":   128000,
 	"claude-sonnet-4-6": 64000,
+	"claude-haiku-5-5":  128000,
 	"claude-haiku-4-5":  64000,
 	"claude-sonnet-4-5": 64000,
 	"claude-opus-4-5":   64000,
